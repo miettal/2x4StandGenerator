@@ -201,7 +201,7 @@
 
   .drawings {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 14px;
   }
   @media (max-width: 640px) {
@@ -217,6 +217,14 @@
     padding: 10px;
     overflow-x: auto;
   }
+  .card h3 {
+    margin: 16px 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--ink-soft);
+  }
+  .card h3:first-of-type { margin-top: 0; }
   .view-card h3 {
     margin: 0 0 6px;
     font-size: 12px;
@@ -232,6 +240,11 @@
   .part-label { fill: var(--ink-soft); font-family: var(--font-mono); font-size: 9.5px; font-variant-numeric: tabular-nums; }
   .ply-rect { fill: var(--wood-fill); stroke: var(--ink); stroke-width: 1; }
   .frame-rect { fill: var(--frame-fill); stroke: var(--ink); stroke-width: 1; }
+  .board-piece { fill: var(--frame-fill); stroke: var(--ink); stroke-width: 1; }
+  .board-waste { fill: url(#waste-hatch); stroke: var(--rule); stroke-width: 1; }
+  .board-warn { fill: color-mix(in srgb, var(--danger) 18%, var(--surface)); stroke: var(--danger); stroke-width: 1; }
+  .waste-bg { fill: var(--surface-2); }
+  .waste-line { stroke: var(--rule); stroke-width: 2; }
 
   .stage3d-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .stage3d {
@@ -259,8 +272,6 @@
   .face-front { filter: brightness(1); }
   .face-side { filter: brightness(0.8); }
   .face-hidden { filter: brightness(0.55); }
-  .stage3d-hint { font-size: 11.5px; color: var(--ink-soft); }
-
   table.parts {
     width: 100%;
     border-collapse: collapse;
@@ -414,15 +425,17 @@
 
       <div class="card">
         <div class="toolbar"><button type="button" id="btnPrint">図面を印刷</button></div>
-        <h2>図面（三面図）</h2>
-        <div class="drawings" id="drawings"></div>
-      </div>
-
-      <div class="card">
-        <h2>立体図</h2>
-        <div class="stage3d-wrap">
-          <div class="stage3d" id="stage3d"><div class="scene3d" id="scene3d"></div></div>
-          <p class="stage3d-hint">ドラッグで回転できます</p>
+        <h2>図面（三面図・立体図）</h2>
+        <div class="drawings" id="drawings">
+          <div class="view-card">
+            <h3>立体図（ドラッグで回転）</h3>
+            <div class="stage3d-wrap">
+              <div class="stage3d" id="stage3d"><div class="scene3d" id="scene3d"></div></div>
+            </div>
+          </div>
+          <div class="view-card"><h3>平面図（天板フレーム）</h3><div id="topViewSlot"></div></div>
+          <div class="view-card"><h3>正面図</h3><div id="frontViewSlot"></div></div>
+          <div class="view-card"><h3>側面図</h3><div id="sideViewSlot"></div></div>
         </div>
       </div>
 
@@ -441,6 +454,15 @@
       <div class="card">
         <h2>買い物リスト（目安）</h2>
         <div class="shopping" id="shopping"></div>
+      </div>
+
+      <div class="card">
+        <h2>切り出し図（木取り図）</h2>
+        <h3>2×4材</h3>
+        <div class="view-card"><div id="boardsSlot"></div></div>
+        <h3>コンパネ</h3>
+        <div id="sheetsWarn"></div>
+        <div class="drawings" id="sheetsSlot"></div>
       </div>
     </section>
   </div>
@@ -478,19 +500,61 @@
 
   function packBoards(pieces, stockLen, kerf) {
     const list = [];
-    pieces.forEach((p) => { for (let i = 0; i < p.qty; i++) list.push(p.len); });
-    list.sort((a, b) => b - a);
-    if (list.some((l) => l > stockLen)) return { bins: null, overLength: true };
+    pieces.forEach((p) => { for (let i = 0; i < p.qty; i++) list.push({ label: p.label, len: p.len }); });
+
+    const overLengthItems = list.filter((it) => it.len > stockLen);
+    const packable = list.filter((it) => it.len <= stockLen).sort((a, b) => b.len - a.len);
+
     const bins = [];
-    list.forEach((len) => {
-      let placed = false;
-      for (const bin of bins) {
-        const need = len + (bin.used > 0 ? kerf : 0);
-        if (bin.remaining >= need) { bin.remaining -= need; bin.used += need; placed = true; break; }
-      }
-      if (!placed) bins.push({ remaining: stockLen - len, used: len });
+    packable.forEach((it) => {
+      let bin = bins.find((b) => b.remaining >= it.len + (b.items.length ? kerf : 0));
+      if (!bin) { bin = { items: [], usedLen: 0, remaining: stockLen }; bins.push(bin); }
+      const x = bin.usedLen + (bin.items.length ? kerf : 0);
+      bin.items.push({ label: it.label, len: it.len, x });
+      bin.usedLen = x + it.len;
+      bin.remaining = stockLen - bin.usedLen;
     });
-    return { bins, overLength: false };
+
+    return { bins, overLengthItems };
+  }
+
+  function orientations(w, h) { return [[w, h], [h, w]]; }
+
+  function fitsAlone(w, h, sheetW, sheetH) {
+    return orientations(w, h).find(([ow, oh]) => ow <= sheetW && oh <= sheetH) || null;
+  }
+
+  // 横並び・縦並び・両者の回転パターンを試し、最初に収まった配置を採用（最適化はしない）
+  function tryCombine(a, b, sheetW, sheetH) {
+    for (const [aw, ah] of orientations(a.w, a.h)) {
+      for (const [bw, bh] of orientations(b.w, b.h)) {
+        if (aw + bw <= sheetW && Math.max(ah, bh) <= sheetH)
+          return [{ label: a.label, x: 0, y: 0, w: aw, h: ah }, { label: b.label, x: aw, y: 0, w: bw, h: bh }];
+        if (Math.max(aw, bw) <= sheetW && ah + bh <= sheetH)
+          return [{ label: a.label, x: 0, y: 0, w: aw, h: ah }, { label: b.label, x: 0, y: ah, w: bw, h: bh }];
+      }
+    }
+    return null;
+  }
+
+  // このツールのコンパネは常に天板+下段棚板の2枚固定。汎用ネスターではない。
+  function packSheets(panels, sheetW, sheetH) {
+    const oversized = [], normal = [];
+    panels.forEach((p) => {
+      const fit = fitsAlone(p.w, p.h, sheetW, sheetH);
+      fit ? normal.push({ ...p, fitW: fit[0], fitH: fit[1] }) : oversized.push(p);
+    });
+
+    const sheets = [];
+    if (normal.length === 2) {
+      const combo = tryCombine(normal[0], normal[1], sheetW, sheetH);
+      sheets.push(...(combo
+        ? [{ placements: combo }]
+        : normal.map((p) => ({ placements: [{ label: p.label, x: 0, y: 0, w: p.fitW, h: p.fitH }] }))));
+    } else if (normal.length === 1) {
+      sheets.push({ placements: [{ label: normal[0].label, x: 0, y: 0, w: normal[0].fitW, h: normal[0].fitH }] });
+    }
+    return { sheets, oversized };
   }
 
   function esc(n) { return Math.round(n * 10) / 10; }
@@ -505,8 +569,12 @@
   }
   const ARROW_DEFS = `<defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto-start-reverse">
       <path class="dim-arrow" d="M0,0 L5,2.5 L0,5 z"/></marker></defs>`;
+  const WASTE_DEFS = `<defs><pattern id="waste-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" class="waste-bg"/><line x1="0" y1="0" x2="0" y2="6" class="waste-line"/>
+    </pattern></defs>`;
 
   const MARGIN = 46;
+  const KERF_MM = 3;
 
   function topView(W, D, legW, frameShort, scale) {
     const Wpx = W * scale, Dpx = D * scale, legPx = Math.max(legW * scale, 3);
@@ -560,6 +628,63 @@
     return s;
   }
 
+  function boardsView(packed, stockLen) {
+    const scale = 640 / stockLen;
+    const barH = 30, gapY = 12;
+    const ox = MARGIN;
+    let rows = [];
+
+    packed.overLengthItems.forEach((it) => {
+      rows.push({
+        html: `<rect class="board-warn" x="${ox}" y="0" width="${stockLen * scale}" height="${barH}"/>`
+          + `<text class="part-label" x="${ox + 6}" y="${barH / 2 + 3}">⚠ ${it.label} ${esc(it.len)}mm は定尺(${esc(stockLen)}mm)を超えています</text>`,
+        label: null,
+      });
+    });
+    packed.bins.forEach((bin, i) => {
+      let row = `<rect class="board-waste" x="${ox}" y="0" width="${stockLen * scale}" height="${barH}"/>`;
+      bin.items.forEach((it) => {
+        const x = ox + it.x * scale, w = it.len * scale;
+        row += `<rect class="board-piece" x="${x}" y="0" width="${w}" height="${barH}"/>`;
+        if (w >= 40) row += `<text class="part-label" x="${x + w / 2}" y="${barH / 2 + 3}" text-anchor="middle">${it.label} ${esc(it.len)}</text>`;
+      });
+      rows.push({ html: row, label: `定尺${i + 1}（端材 約${Math.round(bin.remaining)}mm）` });
+    });
+
+    const totalW = stockLen * scale + ox + MARGIN;
+    const rowH = barH + gapY + 16;
+    const totalH = rows.length * rowH || barH;
+    let s = `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg">${WASTE_DEFS}`;
+    rows.forEach((r, i) => {
+      const y = i * rowH;
+      s += `<g transform="translate(0 ${y})">`;
+      if (r.label) s += `<text class="part-label" x="${ox}" y="-4">${r.label}</text>`;
+      s += r.html;
+      s += `</g>`;
+    });
+    s += `</svg>`;
+    return s;
+  }
+
+  function sheetView(sheet, sheetW, sheetH) {
+    const scale = Math.min(500 / sheetW, 320 / sheetH);
+    const Wpx = sheetW * scale, Hpx = sheetH * scale;
+    const ox = MARGIN, oy = MARGIN;
+    const totalW = Wpx + MARGIN * 2, totalH = Hpx + MARGIN * 2 + 26;
+    let s = `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg">${ARROW_DEFS}${WASTE_DEFS}`;
+    s += `<rect class="board-waste" x="${ox}" y="${oy}" width="${Wpx}" height="${Hpx}"/>`;
+    sheet.placements.forEach((p) => {
+      const px = ox + p.x * scale, py = oy + p.y * scale, pw = p.w * scale, ph = p.h * scale;
+      s += `<rect class="ply-rect" x="${px}" y="${py}" width="${pw}" height="${ph}"/>`;
+      s += `<text class="part-label" x="${px + pw / 2}" y="${py + ph / 2 - 3}" text-anchor="middle">${p.label}</text>`;
+      s += `<text class="part-label" x="${px + pw / 2}" y="${py + ph / 2 + 10}" text-anchor="middle">${esc(p.w)} × ${esc(p.h)}</text>`;
+    });
+    s += dimH(ox, ox + Wpx, oy + Hpx + 22, `${esc(sheetW)}`);
+    s += dimV(oy, oy + Hpx, ox - 22, `${esc(sheetH)}`);
+    s += `</svg>`;
+    return s;
+  }
+
   // 中心(cx,cy,cz)、寸法(w,h,d)のCSS 3Dボックス。cyは画面上で下がプラス（floor側）。
   function box3d(cx, cy, cz, w, h, d, color) {
     const hw = w / 2, hh = h / 2, hd = d / 2;
@@ -600,9 +725,9 @@
         );
       });
     });
-    // 幕板「わたし」(前後)
-    s += box3d(0, Y(shelfGap + legW / 2), -Z(D / 2 - legW / 2), X(stretcherLen), X(legW), X(legW), frame);
-    s += box3d(0, Y(shelfGap + legW / 2), Z(D / 2 - legW / 2), X(stretcherLen), X(legW), X(legW), frame);
+    // 幕板「わたし」(前後)。断面は2×4(legW×legT)。脚と同じZ範囲に収まり、脚の内側面に横からビス打ちする
+    s += box3d(0, Y(shelfGap + legW / 2), -Z(D / 2 - legW - legT / 2), X(stretcherLen), X(legW), X(legT), frame);
+    s += box3d(0, Y(shelfGap + legW / 2), Z(D / 2 - legW - legT / 2), X(stretcherLen), X(legW), X(legT), frame);
     // 下段棚板
     s += box3d(0, Y(shelfGap + legW + t / 2), 0, X(stretcherLen), X(t), X(frameShort), wood);
     return s;
@@ -654,20 +779,23 @@
     const banner = $("banner");
     if (errors.length) {
       banner.innerHTML = `<div class="banner">この寸法では組めません。<ul>${errors.map((e) => `<li>${e}</li>`).join("")}</ul></div>`;
-      $("drawings").innerHTML = "";
+      $("topViewSlot").innerHTML = "";
+      $("frontViewSlot").innerHTML = "";
+      $("sideViewSlot").innerHTML = "";
       $("scene3d").innerHTML = "";
       $("partsBody").innerHTML = "";
       $("shopping").innerHTML = "";
+      $("boardsSlot").innerHTML = "";
+      $("sheetsWarn").innerHTML = "";
+      $("sheetsSlot").innerHTML = "";
       return;
     }
     banner.innerHTML = "";
 
     const scale = Math.min(300 / Math.max(W, D, H, 1), 1.2);
-    $("drawings").innerHTML = `
-      <div class="view-card"><h3>平面図（天板フレーム）</h3>${topView(W, D, legW, frameShort, scale)}</div>
-      <div class="view-card"><h3>正面図</h3>${elevationView(W, H, t, legW, legT, legLen, shelfGap, stretcherLen, scale, `幅 ${esc(W)}`, `高さ ${esc(H)}`, legW)}</div>
-      <div class="view-card"><h3>側面図</h3>${elevationView(D, H, t, legW, legT, legLen, shelfGap, frameShort, scale, `奥行 ${esc(D)}`, `高さ ${esc(H)}`, legT)}</div>
-    `;
+    $("topViewSlot").innerHTML = topView(W, D, legW, frameShort, scale);
+    $("frontViewSlot").innerHTML = elevationView(W, H, t, legW, legT, legLen, shelfGap, stretcherLen, scale, `幅 ${esc(W)}`, `高さ ${esc(H)}`, legW);
+    $("sideViewSlot").innerHTML = elevationView(D, H, t, legW, legT, legLen, shelfGap, frameShort, scale, `奥行 ${esc(D)}`, `高さ ${esc(H)}`, legT);
     $("scene3d").innerHTML = render3D(W, D, H, t, legW, legT, legLen, shelfGap, frameShort, stretcherLen);
 
     const rows = [
@@ -683,22 +811,36 @@
     ).join("");
 
     const pieces = [
-      { len: W, qty: 2 }, { len: frameShort, qty: 2 }, { len: legLen, qty: 4 }, { len: stretcherLen, qty: 2 },
+      { label: "天板フレーム・長手", len: W, qty: 2 },
+      { label: "天板フレーム・短手", len: frameShort, qty: 2 },
+      { label: "脚", len: legLen, qty: 4 },
+      { label: "幕板（わたし）", len: stretcherLen, qty: 2 },
     ];
     const totalLen = pieces.reduce((sum, p) => sum + p.len * p.qty, 0);
-    const packed = packBoards(pieces, stockLen, 3);
-    const fits = (w, d) => (w <= sheetW && d <= sheetH) || (w <= sheetH && d <= sheetW);
-    const topFits = fits(W, D), shelfFits = fits(frameShort, stretcherLen);
+    const packed = packBoards(pieces, stockLen, KERF_MM);
+    $("boardsSlot").innerHTML = boardsView(packed, stockLen);
+
+    const panels = [
+      { label: "天板", w: W, h: D },
+      { label: "下段棚板", w: frameShort, h: stretcherLen },
+    ];
+    const sheetsPacked = packSheets(panels, sheetW, sheetH);
+    $("sheetsWarn").innerHTML = sheetsPacked.oversized.length
+      ? `<div class="banner">規格コンパネ(${esc(sheetW)}×${esc(sheetH)})に収まらない部材があります。<ul>${sheetsPacked.oversized.map((p) => `<li>${p.label} ${esc(p.w)}×${esc(p.h)}</li>`).join("")}</ul>規格を大きくするか、継ぎ方を見直してください。</div>`
+      : "";
+    $("sheetsSlot").innerHTML = sheetsPacked.sheets.map((sheet, i) =>
+      `<div class="view-card"><h3>面材シート${i + 1}</h3>${sheetView(sheet, sheetW, sheetH)}</div>`
+    ).join("");
 
     let lumberBox;
-    if (packed.overLength) {
-      lumberBox = `<div class="box"><h4>2×4材</h4><div class="figure">定尺不足</div><p>1本の必要長が定尺 ${esc(stockLen)}mm を超えています。定尺を長くしてください。</p></div>`;
+    if (packed.overLengthItems.length) {
+      lumberBox = `<div class="box"><h4>2×4材</h4><div class="figure">${packed.bins.length} 本 + 定尺不足</div><p>${packed.overLengthItems.map((it) => `${it.label} ${esc(it.len)}mm`).join("、")} が定尺 ${esc(stockLen)}mm を超えています。定尺を長くしてください。</p></div>`;
     } else {
       const waste = Math.round(packed.bins.reduce((s, b) => s + b.remaining, 0));
-      lumberBox = `<div class="box"><h4>2×4材（定尺 ${esc(stockLen)}mm）</h4><div class="figure">${packed.bins.length} 本</div><p>必要長合計 約${Math.round(totalLen)}mm ／ 端材合計 約${waste}mm（刃厚3mm分を見込んだ目安）</p></div>`;
+      lumberBox = `<div class="box"><h4>2×4材（定尺 ${esc(stockLen)}mm）</h4><div class="figure">${packed.bins.length} 本</div><p>必要長合計 約${Math.round(totalLen)}mm ／ 端材合計 約${waste}mm（刃厚${KERF_MM}mm分を見込んだ目安）</p></div>`;
     }
-    const plyBox = `<div class="box"><h4>コンパネ（規格 ${esc(sheetW)}×${esc(sheetH)}mm）</h4><div class="figure">${(topFits ? 1 : 2) + (shelfFits ? 1 : 2)} 枚</div>
-      <p>天板 ${esc(W)}×${esc(D)}: ${topFits ? "1枚で採れます" : "規格1枚に収まらず2枚必要"}<br>下段棚板 ${esc(frameShort)}×${esc(stretcherLen)}: ${shelfFits ? "1枚で採れます" : "規格1枚に収まらず2枚必要"}</p></div>`;
+    const plyBox = `<div class="box"><h4>コンパネ（規格 ${esc(sheetW)}×${esc(sheetH)}mm）</h4><div class="figure">${sheetsPacked.sheets.length}${sheetsPacked.oversized.length ? " 枚 + 収まらない部材あり" : " 枚"}</div>
+      <p>天板 ${esc(W)}×${esc(D)}、下段棚板 ${esc(frameShort)}×${esc(stretcherLen)}。下の切り出し図（木取り図）で配置を確認してください。</p></div>`;
     $("shopping").innerHTML = lumberBox + plyBox;
   }
 
