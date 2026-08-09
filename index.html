@@ -1,0 +1,571 @@
+<title>2x4 Stand Generator ― 寸法から自動設計する棚・ラックツール</title>
+<style>
+  :root {
+    --bg: #E9E3D3;
+    --surface: #F6F2E7;
+    --surface-2: #EFE9D8;
+    --ink: #2A2420;
+    --ink-soft: #6B6255;
+    --rule: #C3B896;
+    --accent: #1F6E6B;
+    --accent-strong: #155452;
+    --danger: #A23E2E;
+    --wood-fill: #DCD3B8;
+    --frame-fill: #C7A874;
+    --font-display: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+    --font-body: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+    --font-mono: "SF Mono", "Cascadia Mono", "Consolas", "Menlo", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1B1712;
+      --surface: #241F18;
+      --surface-2: #2C2619;
+      --ink: #EDE6D6;
+      --ink-soft: #B7AD98;
+      --rule: #3A3226;
+      --accent: #4FCFC4;
+      --accent-strong: #7FE0D6;
+      --danger: #E2725B;
+      --wood-fill: #3B3325;
+      --frame-fill: #5B4A2E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1B1712; --surface: #241F18; --surface-2: #2C2619; --ink: #EDE6D6; --ink-soft: #B7AD98;
+    --rule: #3A3226; --accent: #4FCFC4; --accent-strong: #7FE0D6; --danger: #E2725B;
+    --wood-fill: #3B3325; --frame-fill: #5B4A2E;
+  }
+  :root[data-theme="light"] {
+    --bg: #E9E3D3; --surface: #F6F2E7; --surface-2: #EFE9D8; --ink: #2A2420; --ink-soft: #6B6255;
+    --rule: #C3B896; --accent: #1F6E6B; --accent-strong: #155452; --danger: #A23E2E;
+    --wood-fill: #DCD3B8; --frame-fill: #C7A874;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  header.hero {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding-bottom: 18px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--rule);
+  }
+  header.hero .mark {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: var(--accent-strong);
+    border: 1px solid var(--accent);
+    padding: 3px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  header.hero h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(22px, 3.2vw, 30px);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: 0.01em;
+  }
+  header.hero p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 14px;
+    flex-basis: 100%;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px;
+  }
+
+  .panel-input h2, .panel-output h2 {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    letter-spacing: 0.02em;
+  }
+  .field-group { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    font-size: 12px;
+    color: var(--ink-soft);
+    letter-spacing: 0.04em;
+  }
+  .field .unit-row { display: flex; align-items: center; gap: 8px; }
+  .field input[type="number"] {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 7px 9px;
+    color: var(--ink);
+  }
+  .field input[type="number"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .field .unit { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .presets button {
+    font-family: var(--font-body);
+    font-size: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .presets button:hover { border-color: var(--accent); color: var(--accent-strong); }
+  .presets button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  details.adv {
+    margin-top: 16px;
+    border-top: 1px solid var(--rule);
+    padding-top: 12px;
+  }
+  details.adv summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+  }
+  details.adv summary:hover { color: var(--accent-strong); }
+  details.adv .field-group { margin-top: 12px; }
+
+  .panel-output { display: flex; flex-direction: column; gap: 18px; }
+
+  .banner {
+    background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .banner ul { margin: 6px 0 0; padding-left: 18px; }
+
+  .drawings {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .drawings { grid-template-columns: 1fr; }
+  }
+  .view-card {
+    background:
+      linear-gradient(var(--surface-2), var(--surface-2)),
+      repeating-linear-gradient(0deg, transparent 0 15px, color-mix(in srgb, var(--rule) 55%, transparent) 15px 16px),
+      repeating-linear-gradient(90deg, transparent 0 15px, color-mix(in srgb, var(--rule) 55%, transparent) 15px 16px);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 10px;
+    overflow-x: auto;
+  }
+  .view-card h3 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+  .view-card svg { display: block; width: 100%; height: auto; }
+
+  .dim-line { stroke: var(--ink); stroke-width: 1; fill: none; }
+  .dim-arrow { fill: var(--ink); }
+  .dim-label { fill: var(--ink); font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .part-label { fill: var(--ink-soft); font-family: var(--font-mono); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+  .ply-rect { fill: var(--wood-fill); stroke: var(--ink); stroke-width: 1; }
+  .frame-rect { fill: var(--frame-fill); stroke: var(--ink); stroke-width: 1; }
+
+  table.parts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.parts th, table.parts td {
+    text-align: left;
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.parts th {
+    color: var(--ink-soft);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+  }
+  table.parts td.num, table.parts th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+  table.parts tbody tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; }
+
+  .shopping { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .shopping { grid-template-columns: 1fr; } }
+  .shopping .box {
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .shopping .box h4 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    color: var(--ink-soft);
+    font-weight: 700;
+  }
+  .shopping .box .figure {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-strong);
+  }
+  .shopping .box p { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+
+  .toolbar { display: flex; justify-content: flex-end; gap: 8px; }
+  .toolbar button {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .toolbar button:hover { border-color: var(--accent); color: var(--accent-strong); }
+
+  footer.note {
+    margin-top: 28px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+  footer.note code { font-family: var(--font-mono); }
+
+  @media print {
+    .panel-input, .toolbar, header.hero p { display: none; }
+    .layout { grid-template-columns: 1fr; }
+    body { background: #fff; color: #000; }
+  }
+</style>
+
+<div class="app">
+  <header class="hero">
+    <span class="mark">📐 2x4 Stand Generator</span>
+    <h1>寸法を入れるだけで図面と部材寸法を出す</h1>
+    <p>幅・奥行き・高さを入力すると、天板(コンパネ)+2×4材フレームの棚を組む前提で、三面図と切り出し寸法・買い物リストを自動計算します。</p>
+  </header>
+
+  <div class="layout">
+    <section class="card panel-input">
+      <h2>寸法を入力</h2>
+
+      <div class="presets">
+        <button type="button" data-preset="600,600,600">例: 立方体 600×600×600</button>
+        <button type="button" data-preset="900,400,700">例: 幅広ローラック 900×400×700</button>
+      </div>
+
+      <div class="field-group">
+        <div class="field">
+          <label for="inW">幅 W（横方向）</label>
+          <div class="unit-row">
+            <input type="number" id="inW" value="600" min="1" step="1" />
+            <span class="unit">mm</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="inD">奥行き D</label>
+          <div class="unit-row">
+            <input type="number" id="inD" value="600" min="1" step="1" />
+            <span class="unit">mm</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="inH">高さ H</label>
+          <div class="unit-row">
+            <input type="number" id="inH" value="600" min="1" step="1" />
+            <span class="unit">mm</span>
+          </div>
+        </div>
+      </div>
+
+      <details class="adv">
+        <summary>詳細設定（材料・定尺）</summary>
+        <div class="field-group">
+          <div class="field">
+            <label for="inT">天板厚み t（コンパネ）</label>
+            <div class="unit-row"><input type="number" id="inT" value="10" min="1" step="1" /><span class="unit">mm</span></div>
+          </div>
+          <div class="field">
+            <label for="inLegW">脚材の幅（2×4の狭い面）</label>
+            <div class="unit-row"><input type="number" id="inLegW" value="38" min="1" step="1" /><span class="unit">mm</span></div>
+          </div>
+          <div class="field">
+            <label for="inLegT">脚材の厚み（2×4の広い面）</label>
+            <div class="unit-row"><input type="number" id="inLegT" value="89" min="1" step="1" /><span class="unit">mm</span></div>
+          </div>
+          <div class="field">
+            <label for="inShelfGap">下段棚板の高さ（床からわたし下端）</label>
+            <div class="unit-row"><input type="number" id="inShelfGap" value="150" min="0" step="10" /><span class="unit">mm</span></div>
+          </div>
+          <div class="field">
+            <label for="inStock">2×4材の定尺</label>
+            <div class="unit-row"><input type="number" id="inStock" value="1820" min="300" step="10" /><span class="unit">mm</span></div>
+          </div>
+          <div class="field">
+            <label for="inSheetW">コンパネ規格（幅×高さ）</label>
+            <div class="unit-row">
+              <input type="number" id="inSheetW" value="1820" min="100" step="10" />
+              <span class="unit">×</span>
+              <input type="number" id="inSheetH" value="910" min="100" step="10" />
+              <span class="unit">mm</span>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel-output">
+      <div id="banner"></div>
+
+      <div class="card">
+        <div class="toolbar"><button type="button" id="btnPrint">図面を印刷</button></div>
+        <h2>図面（三面図）</h2>
+        <div class="drawings" id="drawings"></div>
+      </div>
+
+      <div class="card">
+        <h2>部材リスト</h2>
+        <div class="table-wrap">
+          <table class="parts">
+            <thead>
+              <tr><th>材料</th><th>部材名</th><th class="num">寸法 (mm)</th><th class="num">数量</th></tr>
+            </thead>
+            <tbody id="partsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>買い物リスト（目安）</h2>
+        <div class="shopping" id="shopping"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="note">
+    想定している組み方: <code>コンパネ天板</code> の下に <code>2×4材</code> でハシゴ状のフレーム(4辺)を組み、その内側・最上部に四隅の脚(floorから天板下面まで通し)を接続し、幅方向の前後に幕板（わたし）を通してその上に<code>下段棚板（コンパネ2枚目）</code>を載せる箱組みです。
+    脚の長さは <code>高さ − 天板厚</code>、フレーム短手は <code>奥行き − 脚幅×2</code>、幕板は <code>幅 − 脚幅×欠き込み回数</code>、下段棚板は <code>フレーム短手 × 幕板の長さ</code> で計算しています。下段棚板の設置高さ（詳細設定の「下段棚板の高さ」）は実測値が未確定のため仮値です。実際の継ぎ方に合わせて詳細設定を調整してください。切り出し本数・材料量はいずれも目安です。刃の厚み分の余裕を見て、現物で最終確認してから切り出してください。
+  </footer>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const ids = ["inW","inD","inH","inT","inLegW","inLegT","inShelfGap","inStock","inSheetW","inSheetH"];
+  ids.forEach((id) => $(id).addEventListener("input", render));
+  document.querySelectorAll("[data-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const [w, d, h] = btn.getAttribute("data-preset").split(",");
+      $("inW").value = w; $("inD").value = d; $("inH").value = h;
+      render();
+    });
+  });
+  $("btnPrint").addEventListener("click", () => window.print());
+
+  function num(id, fallback) {
+    const v = parseFloat($(id).value);
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  function packBoards(pieces, stockLen, kerf) {
+    const list = [];
+    pieces.forEach((p) => { for (let i = 0; i < p.qty; i++) list.push(p.len); });
+    list.sort((a, b) => b - a);
+    if (list.some((l) => l > stockLen)) return { bins: null, overLength: true };
+    const bins = [];
+    list.forEach((len) => {
+      let placed = false;
+      for (const bin of bins) {
+        const need = len + (bin.used > 0 ? kerf : 0);
+        if (bin.remaining >= need) { bin.remaining -= need; bin.used += need; placed = true; break; }
+      }
+      if (!placed) bins.push({ remaining: stockLen - len, used: len });
+    });
+    return { bins, overLength: false };
+  }
+
+  function esc(n) { return Math.round(n * 10) / 10; }
+
+  function dimH(x1, x2, y, label) {
+    return `<line class="dim-line" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" marker-start="url(#arrow)" marker-end="url(#arrow)"/>`
+      + `<text class="dim-label" x="${(x1 + x2) / 2}" y="${y - 6}" text-anchor="middle">${label}</text>`;
+  }
+  function dimV(y1, y2, x, label) {
+    return `<line class="dim-line" x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" marker-start="url(#arrow)" marker-end="url(#arrow)"/>`
+      + `<text class="dim-label" x="${x - 6}" y="${(y1 + y2) / 2}" text-anchor="middle" transform="rotate(-90 ${x - 6} ${(y1 + y2) / 2})">${label}</text>`;
+  }
+  const ARROW_DEFS = `<defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto-start-reverse">
+      <path class="dim-arrow" d="M0,0 L5,2.5 L0,5 z"/></marker></defs>`;
+
+  const MARGIN = 46;
+
+  function topView(W, D, legW, frameShort, scale) {
+    const Wpx = W * scale, Dpx = D * scale, legPx = Math.max(legW * scale, 3);
+    const totalW = Wpx + MARGIN * 2, totalH = Dpx + MARGIN * 2 + 26;
+    const ox = MARGIN, oy = MARGIN;
+    let s = `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg">${ARROW_DEFS}`;
+    s += `<rect class="ply-rect" x="${ox}" y="${oy}" width="${Wpx}" height="${Dpx}"/>`;
+    s += `<rect class="frame-rect" x="${ox}" y="${oy}" width="${Wpx}" height="${legPx}"/>`;
+    s += `<rect class="frame-rect" x="${ox}" y="${oy + Dpx - legPx}" width="${Wpx}" height="${legPx}"/>`;
+    s += `<rect class="frame-rect" x="${ox}" y="${oy + legPx}" width="${legPx}" height="${Dpx - 2 * legPx}"/>`;
+    s += `<rect class="frame-rect" x="${ox + Wpx - legPx}" y="${oy + legPx}" width="${legPx}" height="${Dpx - 2 * legPx}"/>`;
+    s += `<text class="part-label" x="${ox + Wpx / 2}" y="${oy + legPx / 2 + 3}" text-anchor="middle">${esc(W)}</text>`;
+    s += `<text class="part-label" x="${ox + legPx / 2}" y="${oy + Dpx / 2}" text-anchor="middle" transform="rotate(-90 ${ox + legPx / 2} ${oy + Dpx / 2})">${esc(frameShort)}</text>`;
+    s += dimH(ox, ox + Wpx, oy + Dpx + 22, `幅 ${esc(W)}`);
+    s += dimV(oy, oy + Dpx, ox - 22, `奥行 ${esc(D)}`);
+    s += `</svg>`;
+    return s;
+  }
+
+  // horizLen: 部材が正面から見て通しで見える長さ（正面図はW、側面図はD）
+  // shelfWidthLen: 下段棚板がこの図で見える幅（正面図はわたし長さ、側面図はフレーム短手）
+  // legViewWidth: 脚をこの図で見たときの見た目の幅（2×4は38×89なので、正面図は38、側面図は89になる）
+  function elevationView(horizLen, H, t, legW, legT, legLen, shelfGap, shelfWidthLen, scale, dimLabelH, dimLabelV, legViewWidth) {
+    const Hpx = H * scale, Lpx = horizLen * scale;
+    const tpx = Math.max(t * scale, 3), insetPx = Math.max(legW * scale, 3), legTpx = Math.max(legT * scale, 4);
+    const legDrawPx = Math.max(legViewWidth * scale, 3);
+    const totalW = Lpx + MARGIN * 2, totalH = Hpx + MARGIN * 2 + 26;
+    const ox = MARGIN, oy = MARGIN;
+    let s = `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg">${ARROW_DEFS}`;
+
+    // 天板
+    s += `<rect class="ply-rect" x="${ox}" y="${oy}" width="${Lpx}" height="${tpx}"/>`;
+    // 脚（天板フレームの内側＝枠の厚み分だけ内側に入る。floorから天板下面まで通し）
+    s += `<rect class="frame-rect" x="${ox + insetPx}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
+    s += `<rect class="frame-rect" x="${ox + Lpx - insetPx - legDrawPx}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
+    // 天板フレーム（4辺、外形いっぱいに通し。脚は枠の内側に収まるので、この帯が脚の上部を覆うように描く）
+    s += `<rect class="frame-rect" x="${ox}" y="${oy + tpx}" width="${Lpx}" height="${legTpx}"/>`;
+    s += `<text class="part-label" x="${ox + Lpx / 2}" y="${oy + tpx + legTpx / 2 + 3}" text-anchor="middle">枠 ${esc(legT)}</text>`;
+    // 幕板「わたし」＋下段棚板
+    const shelfWpx = shelfWidthLen * scale, sx = ox + (Lpx - shelfWpx) / 2;
+    const watashiTop = oy + Hpx - shelfGap * scale - insetPx;
+    s += `<rect class="frame-rect" x="${sx}" y="${watashiTop}" width="${shelfWpx}" height="${insetPx}"/>`;
+    const shelfTop = watashiTop - tpx;
+    s += `<rect class="ply-rect" x="${sx}" y="${shelfTop}" width="${shelfWpx}" height="${tpx}"/>`;
+    s += `<text class="part-label" x="${sx + shelfWpx / 2}" y="${shelfTop - 4}" text-anchor="middle">下段棚板 ${esc(shelfWidthLen)}</text>`;
+
+    s += `<text class="part-label" x="${ox + insetPx + legDrawPx / 2}" y="${oy + tpx + (Hpx - tpx) / 2}" text-anchor="middle" transform="rotate(-90 ${ox + insetPx + legDrawPx / 2} ${oy + tpx + (Hpx - tpx) / 2})">${esc(legLen)}</text>`;
+    s += dimH(ox, ox + Lpx, oy + Hpx + 22, dimLabelH);
+    s += dimV(oy, oy + Hpx, ox + Lpx + 22, dimLabelV);
+    s += `</svg>`;
+    return s;
+  }
+
+  function render() {
+    const W = num("inW", 0), D = num("inD", 0), H = num("inH", 0);
+    const t = num("inT", 10), legW = num("inLegW", 38), legT = num("inLegT", 89);
+    const shelfGap = num("inShelfGap", 150), stockLen = num("inStock", 1820);
+    // わたしは脚の内側(inset=legW)+脚自身の幅(legW)を両端でよけるので、常に legW×4 を差し引く
+    const insetCount = 4;
+    const sheetW = num("inSheetW", 1820), sheetH = num("inSheetH", 910);
+
+    const errors = [];
+    if (W <= 0 || D <= 0 || H <= 0) errors.push("幅・奥行き・高さは1mm以上を入力してください。");
+    const frameShort = D - 2 * legW;
+    if (frameShort <= 0) errors.push("奥行きが脚材幅×2以下のため、フレームの短手が作れません。奥行きを増やすか脚材の幅を狭くしてください。");
+    const legLen = H - t;
+    if (legLen <= 0) errors.push("高さが天板厚以下のため、脚の長さが0以下になります。");
+    if (legT > legLen) errors.push("天板フレームの高さ（脚材の厚み）が脚の長さより大きくなっています。脚材の厚みを見直してください。");
+    const stretcherLen = W - insetCount * legW;
+    if (stretcherLen <= 0) errors.push("幅が幕板の欠き込み分より小さいため、幕板が作れません。幅を増やすか欠き込み回数を減らしてください。");
+    if (shelfGap < 0) errors.push("下段棚板の高さは0mm以上にしてください。");
+    const shelfTopZ = shelfGap + legW + t, apronBottomZ = legLen - legT;
+    if (shelfGap >= 0 && shelfTopZ > apronBottomZ) errors.push("下段棚板の高さが高すぎて天板フレームと干渉します。下段棚板の高さを下げてください。");
+
+    const banner = $("banner");
+    if (errors.length) {
+      banner.innerHTML = `<div class="banner">この寸法では組めません。<ul>${errors.map((e) => `<li>${e}</li>`).join("")}</ul></div>`;
+      $("drawings").innerHTML = "";
+      $("partsBody").innerHTML = "";
+      $("shopping").innerHTML = "";
+      return;
+    }
+    banner.innerHTML = "";
+
+    const scale = Math.min(300 / Math.max(W, D, H, 1), 1.2);
+    $("drawings").innerHTML = `
+      <div class="view-card"><h3>平面図（天板フレーム）</h3>${topView(W, D, legW, frameShort, scale)}</div>
+      <div class="view-card"><h3>正面図</h3>${elevationView(W, H, t, legW, legT, legLen, shelfGap, stretcherLen, scale, `幅 ${esc(W)}`, `高さ ${esc(H)}`, legW)}</div>
+      <div class="view-card"><h3>側面図</h3>${elevationView(D, H, t, legW, legT, legLen, shelfGap, frameShort, scale, `奥行 ${esc(D)}`, `高さ ${esc(H)}`, legT)}</div>
+    `;
+
+    const rows = [
+      ["コンパネ①", "天板", `${esc(W)} × ${esc(D)} × ${esc(t)}`, "1 枚"],
+      [`2×4材 (${esc(legW)}×${esc(legT)})`, "天板フレーム・長手", `${esc(W)}`, "2 本"],
+      [`2×4材 (${esc(legW)}×${esc(legT)})`, "天板フレーム・短手", `${esc(frameShort)}`, "2 本"],
+      [`2×4材 (${esc(legW)}×${esc(legT)})`, "脚", `${esc(legLen)}`, "4 本"],
+      [`2×4材 (${esc(legW)}×${esc(legT)})`, "幕板（わたし）", `${esc(stretcherLen)}`, "2 本"],
+      ["コンパネ②", "下段棚板", `${esc(frameShort)} × ${esc(stretcherLen)} × ${esc(t)}`, "1 枚"],
+    ];
+    $("partsBody").innerHTML = rows.map((r) =>
+      `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td></tr>`
+    ).join("");
+
+    const pieces = [
+      { len: W, qty: 2 }, { len: frameShort, qty: 2 }, { len: legLen, qty: 4 }, { len: stretcherLen, qty: 2 },
+    ];
+    const totalLen = pieces.reduce((sum, p) => sum + p.len * p.qty, 0);
+    const packed = packBoards(pieces, stockLen, 3);
+    const fits = (w, d) => (w <= sheetW && d <= sheetH) || (w <= sheetH && d <= sheetW);
+    const topFits = fits(W, D), shelfFits = fits(frameShort, stretcherLen);
+
+    let lumberBox;
+    if (packed.overLength) {
+      lumberBox = `<div class="box"><h4>2×4材</h4><div class="figure">定尺不足</div><p>1本の必要長が定尺 ${esc(stockLen)}mm を超えています。定尺を長くしてください。</p></div>`;
+    } else {
+      const waste = Math.round(packed.bins.reduce((s, b) => s + b.remaining, 0));
+      lumberBox = `<div class="box"><h4>2×4材（定尺 ${esc(stockLen)}mm）</h4><div class="figure">${packed.bins.length} 本</div><p>必要長合計 約${Math.round(totalLen)}mm ／ 端材合計 約${waste}mm（刃厚3mm分を見込んだ目安）</p></div>`;
+    }
+    const plyBox = `<div class="box"><h4>コンパネ（規格 ${esc(sheetW)}×${esc(sheetH)}mm）</h4><div class="figure">${(topFits ? 1 : 2) + (shelfFits ? 1 : 2)} 枚</div>
+      <p>天板 ${esc(W)}×${esc(D)}: ${topFits ? "1枚で採れます" : "規格1枚に収まらず2枚必要"}<br>下段棚板 ${esc(frameShort)}×${esc(stretcherLen)}: ${shelfFits ? "1枚で採れます" : "規格1枚に収まらず2枚必要"}</p></div>`;
+    $("shopping").innerHTML = lumberBox + plyBox;
+  }
+
+  render();
+})();
+</script>
