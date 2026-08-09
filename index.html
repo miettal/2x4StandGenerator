@@ -245,6 +245,7 @@
   .board-warn { fill: color-mix(in srgb, var(--danger) 18%, var(--surface)); stroke: var(--danger); stroke-width: 1; }
   .waste-bg { fill: var(--surface-2); }
   .waste-line { stroke: var(--rule); stroke-width: 2; }
+  .hidden-part { fill: none; stroke: var(--ink-soft); stroke-width: 1.2; stroke-dasharray: 3 3; }
   .cut-line { stroke: var(--danger); stroke-width: 1.5; stroke-dasharray: 6 4; }
   .cut-badge-bg { fill: var(--surface); stroke: var(--danger); stroke-width: 1.5; }
   .cut-badge-text { fill: var(--danger); font-family: var(--font-mono); font-size: 10px; font-weight: 700; }
@@ -644,31 +645,47 @@
   // horizLen: 部材が正面から見て通しで見える長さ（正面図はW、側面図はD）
   // shelfWidthLen: 下段棚板がこの図で見える幅（正面図はわたし長さ、側面図はフレーム短手）
   // legViewWidth: 脚をこの図で見たときの見た目の幅（2×4は38×89なので、正面図は38、側面図は89になる）
-  function elevationView(horizLen, H, t, legW, legT, legLen, shelfGap, shelfWidthLen, scale, dimLabelH, dimLabelV, legViewWidth) {
+  // isSide: 側面図かどうか。わたしは脚と同じ奥行き位置にあり側面からは脚の裏に完全に隠れ、
+  // 下段棚板も両端が脚の裏にかかるため、側面図だけ描画順・表現を変える（隠れる部分は破線）。
+  function elevationView(horizLen, H, t, legW, legT, legLen, shelfGap, shelfWidthLen, scale, dimLabelH, dimLabelV, legViewWidth, isSide) {
     const Hpx = H * scale, Lpx = horizLen * scale;
     const tpx = Math.max(t * scale, 3), insetPx = Math.max(legW * scale, 3), legTpx = Math.max(legT * scale, 4);
     const legDrawPx = Math.max(legViewWidth * scale, 3);
     const totalW = Lpx + MARGIN * 2, totalH = Hpx + MARGIN * 2 + 26;
     const ox = MARGIN, oy = MARGIN;
+    const shelfWpx = shelfWidthLen * scale, sx = ox + (Lpx - shelfWpx) / 2;
+    const watashiTop = oy + Hpx - shelfGap * scale - insetPx;
+    const shelfTop = watashiTop - tpx;
+    const legX1 = ox + insetPx, legX2 = ox + Lpx - insetPx - legDrawPx;
     let s = `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg">${ARROW_DEFS}`;
 
     // 天板
     s += `<rect class="ply-rect" x="${ox}" y="${oy}" width="${Lpx}" height="${tpx}"/>`;
+
+    if (isSide) {
+      // 下段棚板を脚より先に描く。両端は後で描く脚に覆われて隠れ、中央だけ見える（実際に脚の裏へ回り込む形と一致）
+      s += `<rect class="ply-rect" x="${sx}" y="${shelfTop}" width="${shelfWpx}" height="${tpx}"/>`;
+    }
+
     // 脚（天板フレームの内側＝枠の厚み分だけ内側に入る。floorから天板下面まで通し）
-    s += `<rect class="frame-rect" x="${ox + insetPx}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
-    s += `<rect class="frame-rect" x="${ox + Lpx - insetPx - legDrawPx}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
+    s += `<rect class="frame-rect" x="${legX1}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
+    s += `<rect class="frame-rect" x="${legX2}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
     // 天板フレーム（4辺、外形いっぱいに通し。脚は枠の内側に収まるので、この帯が脚の上部を覆うように描く）
     s += `<rect class="frame-rect" x="${ox}" y="${oy + tpx}" width="${Lpx}" height="${legTpx}"/>`;
     s += `<text class="part-label" x="${ox + Lpx / 2}" y="${oy + tpx + legTpx / 2 + 3}" text-anchor="middle">枠 ${esc(legT)}</text>`;
-    // 幕板「わたし」＋下段棚板
-    const shelfWpx = shelfWidthLen * scale, sx = ox + (Lpx - shelfWpx) / 2;
-    const watashiTop = oy + Hpx - shelfGap * scale - insetPx;
-    s += `<rect class="frame-rect" x="${sx}" y="${watashiTop}" width="${shelfWpx}" height="${insetPx}"/>`;
-    const shelfTop = watashiTop - tpx;
-    s += `<rect class="ply-rect" x="${sx}" y="${shelfTop}" width="${shelfWpx}" height="${tpx}"/>`;
+
+    if (isSide) {
+      // わたしは脚とちょうど同じ奥行き位置にあるので、脚の裏に完全に隠れる。破線で位置だけ示す
+      s += `<rect class="hidden-part" x="${legX1}" y="${watashiTop}" width="${legDrawPx}" height="${insetPx}"/>`;
+      s += `<rect class="hidden-part" x="${legX2}" y="${watashiTop}" width="${legDrawPx}" height="${insetPx}"/>`;
+    } else {
+      // 正面図: わたし・下段棚板は脚の間に見えるので、脚の上に重ねて描く
+      s += `<rect class="frame-rect" x="${sx}" y="${watashiTop}" width="${shelfWpx}" height="${insetPx}"/>`;
+      s += `<rect class="ply-rect" x="${sx}" y="${shelfTop}" width="${shelfWpx}" height="${tpx}"/>`;
+    }
     s += `<text class="part-label" x="${sx + shelfWpx / 2}" y="${shelfTop - 4}" text-anchor="middle">下段棚板 ${esc(shelfWidthLen)}</text>`;
 
-    s += `<text class="part-label" x="${ox + insetPx + legDrawPx / 2}" y="${oy + tpx + (Hpx - tpx) / 2}" text-anchor="middle" transform="rotate(-90 ${ox + insetPx + legDrawPx / 2} ${oy + tpx + (Hpx - tpx) / 2})">${esc(legLen)}</text>`;
+    s += `<text class="part-label" x="${legX1 + legDrawPx / 2}" y="${oy + tpx + (Hpx - tpx) / 2}" text-anchor="middle" transform="rotate(-90 ${legX1 + legDrawPx / 2} ${oy + tpx + (Hpx - tpx) / 2})">${esc(legLen)}</text>`;
     s += dimH(ox, ox + Lpx, oy + Hpx + 22, dimLabelH);
     s += dimV(oy, oy + Hpx, ox + Lpx + 22, dimLabelV);
     s += `</svg>`;
@@ -699,11 +716,12 @@
     });
 
     const totalW = stockLen * scale + ox + MARGIN;
-    const rowH = barH + gapY + 16;
-    const totalH = rows.length * rowH || barH;
+    const labelH = 16;
+    const rowH = barH + gapY + labelH;
+    const totalH = (rows.length * rowH || barH) + labelH;
     let s = `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg">${WASTE_DEFS}`;
     rows.forEach((r, i) => {
-      const y = i * rowH;
+      const y = i * rowH + labelH;
       s += `<g transform="translate(0 ${y})">`;
       if (r.label) s += `<text class="part-label" x="${ox}" y="-4">${r.label}</text>`;
       s += r.html;
@@ -855,8 +873,8 @@
 
     const scale = Math.min(300 / Math.max(W, D, H, 1), 1.2);
     $("topViewSlot").innerHTML = topView(W, D, legW, frameShort, scale);
-    $("frontViewSlot").innerHTML = elevationView(W, H, t, legW, legT, legLen, shelfGap, stretcherLen, scale, `幅 ${esc(W)}`, `高さ ${esc(H)}`, legW);
-    $("sideViewSlot").innerHTML = elevationView(D, H, t, legW, legT, legLen, shelfGap, frameShort, scale, `奥行 ${esc(D)}`, `高さ ${esc(H)}`, legT);
+    $("frontViewSlot").innerHTML = elevationView(W, H, t, legW, legT, legLen, shelfGap, stretcherLen, scale, `幅 ${esc(W)}`, `高さ ${esc(H)}`, legW, false);
+    $("sideViewSlot").innerHTML = elevationView(D, H, t, legW, legT, legLen, shelfGap, frameShort, scale, `奥行 ${esc(D)}`, `高さ ${esc(H)}`, legT, true);
     $("scene3d").innerHTML = render3D(W, D, H, t, legW, legT, legLen, shelfGap, frameShort, stretcherLen);
 
     const rows = [
