@@ -87,6 +87,27 @@
     flex-basis: 100%;
   }
 
+  .example-photo { margin-bottom: 18px; }
+  .example-photo h2 {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    letter-spacing: 0.02em;
+  }
+  .example-photo img {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+  }
+  .example-photo p {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
   .layout {
     display: grid;
     grid-template-columns: 320px 1fr;
@@ -289,6 +310,12 @@
     <h1>寸法を入れるだけで図面と部材寸法を出す</h1>
     <p>幅・奥行き・高さを入力すると、天板(コンパネ)+2×4材フレームの棚を組む前提で、三面図と切り出し寸法・買い物リストを自動計算します。</p>
   </header>
+
+  <section class="card example-photo">
+    <h2>制作例</h2>
+    <img src="docs/photo-02-kitchen-detail.jpeg" alt="このツールで部材を計算して組んだIH台の実例" />
+    <p>このツールの元になった実際の製作例（IH台）。</p>
+  </section>
 
   <div class="layout">
     <section class="card panel-input">
