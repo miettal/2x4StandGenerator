@@ -662,11 +662,6 @@
     // 天板
     s += `<rect class="ply-rect" x="${ox}" y="${oy}" width="${Lpx}" height="${tpx}"/>`;
 
-    if (isSide) {
-      // 下段棚板を脚より先に描く。両端は後で描く脚に覆われて隠れ、中央だけ見える（実際に脚の裏へ回り込む形と一致）
-      s += `<rect class="ply-rect" x="${sx}" y="${shelfTop}" width="${shelfWpx}" height="${tpx}"/>`;
-    }
-
     // 脚（天板フレームの内側＝枠の厚み分だけ内側に入る。floorから天板下面まで通し）
     s += `<rect class="frame-rect" x="${legX1}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
     s += `<rect class="frame-rect" x="${legX2}" y="${oy + tpx}" width="${legDrawPx}" height="${Hpx - tpx}"/>`;
@@ -675,9 +670,14 @@
     s += `<text class="part-label" x="${ox + Lpx / 2}" y="${oy + tpx + legTpx / 2 + 3}" text-anchor="middle">枠 ${esc(legT)}</text>`;
 
     if (isSide) {
-      // わたしは脚とちょうど同じ奥行き位置にあるので、脚の裏に完全に隠れる。破線で位置だけ示す
+      // わたしは脚とちょうど同じ奥行き位置にあるので、側面からは脚の裏に完全に隠れる。破線(隠れ線)で位置だけ示す
       s += `<rect class="hidden-part" x="${legX1}" y="${watashiTop}" width="${legDrawPx}" height="${insetPx}"/>`;
       s += `<rect class="hidden-part" x="${legX2}" y="${watashiTop}" width="${legDrawPx}" height="${insetPx}"/>`;
+      // 下段棚板は両端が脚の裏にかかる。脚に重なる部分は破線、脚の間の見える部分だけ実線にする
+      const midX = legX1 + legDrawPx, midW = legX2 - midX;
+      if (midW > 0) s += `<rect class="ply-rect" x="${midX}" y="${shelfTop}" width="${midW}" height="${tpx}"/>`;
+      s += `<rect class="hidden-part" x="${sx}" y="${shelfTop}" width="${legDrawPx}" height="${tpx}"/>`;
+      s += `<rect class="hidden-part" x="${legX2}" y="${shelfTop}" width="${legDrawPx}" height="${tpx}"/>`;
     } else {
       // 正面図: わたし・下段棚板は脚の間に見えるので、脚の上に重ねて描く
       s += `<rect class="frame-rect" x="${sx}" y="${watashiTop}" width="${shelfWpx}" height="${insetPx}"/>`;
