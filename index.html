@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>2x4 Stand Generator ― 寸法から自動設計する棚・ラックツール</title>
 <style>
   :root {
@@ -87,7 +88,7 @@
     flex-basis: 100%;
   }
 
-  .example-photo { margin-bottom: 18px; }
+  .example-photo { margin-top: 18px; }
   .example-photo h2 {
     font-family: var(--font-display);
     font-size: 15px;
@@ -232,6 +233,34 @@
   .ply-rect { fill: var(--wood-fill); stroke: var(--ink); stroke-width: 1; }
   .frame-rect { fill: var(--frame-fill); stroke: var(--ink); stroke-width: 1; }
 
+  .stage3d-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .stage3d {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 1;
+    perspective: 900px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .stage3d.dragging { cursor: grabbing; }
+  .scene3d {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .box3d { position: absolute; transform-style: preserve-3d; }
+  .face3d { position: absolute; border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); }
+  .face-top { filter: brightness(1.22); }
+  .face-front { filter: brightness(1); }
+  .face-side { filter: brightness(0.8); }
+  .face-hidden { filter: brightness(0.55); }
+  .stage3d-hint { font-size: 11.5px; color: var(--ink-soft); }
+
   table.parts {
     width: 100%;
     border-collapse: collapse;
@@ -310,12 +339,6 @@
     <h1>寸法を入れるだけで図面と部材寸法を出す</h1>
     <p>幅・奥行き・高さを入力すると、天板(コンパネ)+2×4材フレームの棚を組む前提で、三面図と切り出し寸法・買い物リストを自動計算します。</p>
   </header>
-
-  <section class="card example-photo">
-    <h2>制作例</h2>
-    <img src="docs/photo-02-kitchen-detail.jpeg" alt="このツールで部材を計算して組んだIH台の実例" />
-    <p>このツールの元になった実際の製作例（IH台）。</p>
-  </section>
 
   <div class="layout">
     <section class="card panel-input">
@@ -396,6 +419,14 @@
       </div>
 
       <div class="card">
+        <h2>立体図</h2>
+        <div class="stage3d-wrap">
+          <div class="stage3d" id="stage3d"><div class="scene3d" id="scene3d"></div></div>
+          <p class="stage3d-hint">ドラッグで回転できます</p>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>部材リスト</h2>
         <div class="table-wrap">
           <table class="parts">
@@ -413,6 +444,12 @@
       </div>
     </section>
   </div>
+
+  <section class="card example-photo">
+    <h2>制作例</h2>
+    <img src="docs/photo-02-kitchen-detail.jpeg" alt="このツールで部材を計算して組んだIH台の実例" />
+    <p>このツールの元になった実際の製作例（IH台）。</p>
+  </section>
 
   <footer class="note">
     想定している組み方: <code>コンパネ天板</code> の下に <code>2×4材</code> でハシゴ状のフレーム(4辺)を組み、その内側・最上部に四隅の脚(floorから天板下面まで通し)を接続し、幅方向の前後に幕板（わたし）を通してその上に<code>下段棚板（コンパネ2枚目）</code>を載せる箱組みです。
@@ -523,6 +560,76 @@
     return s;
   }
 
+  // 中心(cx,cy,cz)、寸法(w,h,d)のCSS 3Dボックス。cyは画面上で下がプラス（floor側）。
+  function box3d(cx, cy, cz, w, h, d, color) {
+    const hw = w / 2, hh = h / 2, hd = d / 2;
+    const face = (fw, fh, transform, cls) =>
+      `<div class="face3d ${cls}" style="width:${fw}px;height:${fh}px;left:${-fw / 2}px;top:${-fh / 2}px;background:${color};transform:${transform};"></div>`;
+    return `<div class="box3d" style="transform:translate3d(${cx}px,${cy}px,${cz}px);">
+      ${face(w, h, `translateZ(${hd}px)`, "face-front")}
+      ${face(w, h, `rotateY(180deg) translateZ(${hd}px)`, "face-hidden")}
+      ${face(d, h, `rotateY(90deg) translateZ(${hw}px)`, "face-side")}
+      ${face(d, h, `rotateY(-90deg) translateZ(${hw}px)`, "face-side")}
+      ${face(w, d, `rotateX(90deg) translateZ(${hh}px)`, "face-top")}
+      ${face(w, d, `rotateX(-90deg) translateZ(${hh}px)`, "face-hidden")}
+    </div>`;
+  }
+
+  function render3D(W, D, H, t, legW, legT, legLen, shelfGap, frameShort, stretcherLen) {
+    const scale3d = Math.min(130 / Math.max(W, D, H, 1), 1);
+    const X = (mm) => mm * scale3d;
+    const Y = (heightFromFloor) => (H / 2 - heightFromFloor) * scale3d;
+    const Z = (mm) => mm * scale3d;
+    const wood = "var(--wood-fill)", frame = "var(--frame-fill)";
+
+    let s = "";
+    // 天板
+    s += box3d(0, Y(H - t / 2), 0, X(W), X(t), X(D), wood);
+    // 天板フレーム 長手(前後)
+    s += box3d(0, Y(H - t - legT / 2), -Z(D / 2 - legW / 2), X(W), X(legT), X(legW), frame);
+    s += box3d(0, Y(H - t - legT / 2), Z(D / 2 - legW / 2), X(W), X(legT), X(legW), frame);
+    // 天板フレーム 短手(左右)
+    s += box3d(-X(W / 2 - legW / 2), Y(H - t - legT / 2), 0, X(legW), X(legT), X(frameShort), frame);
+    s += box3d(X(W / 2 - legW / 2), Y(H - t - legT / 2), 0, X(legW), X(legT), X(frameShort), frame);
+    // 脚(4本)
+    [-1, 1].forEach((sx) => {
+      [-1, 1].forEach((sz) => {
+        s += box3d(
+          sx * X(W / 2 - 1.5 * legW), Y(legLen / 2), sz * X(D / 2 - legW - legT / 2),
+          X(legW), X(legLen), X(legT), frame
+        );
+      });
+    });
+    // 幕板「わたし」(前後)
+    s += box3d(0, Y(shelfGap + legW / 2), -Z(D / 2 - legW / 2), X(stretcherLen), X(legW), X(legW), frame);
+    s += box3d(0, Y(shelfGap + legW / 2), Z(D / 2 - legW / 2), X(stretcherLen), X(legW), X(legW), frame);
+    // 下段棚板
+    s += box3d(0, Y(shelfGap + legW + t / 2), 0, X(stretcherLen), X(t), X(frameShort), wood);
+    return s;
+  }
+
+  (function initDrag3D() {
+    const stage = $("stage3d"), scene = $("scene3d");
+    let rotX = -20, rotY = -30, dragging = false, lastX = 0, lastY = 0;
+    const apply = () => { scene.style.transform = `translate(-50%,-50%) rotateX(${rotX}deg) rotateY(${rotY}deg)`; };
+    apply();
+    stage.addEventListener("pointerdown", (e) => {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId);
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      rotY += (e.clientX - lastX) * 0.4;
+      rotX -= (e.clientY - lastY) * 0.4;
+      rotX = Math.max(-85, Math.min(85, rotX));
+      lastX = e.clientX; lastY = e.clientY;
+      apply();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) =>
+      stage.addEventListener(ev, () => { dragging = false; stage.classList.remove("dragging"); })
+    );
+  })();
+
   function render() {
     const W = num("inW", 0), D = num("inD", 0), H = num("inH", 0);
     const t = num("inT", 10), legW = num("inLegW", 38), legT = num("inLegT", 89);
@@ -548,6 +655,7 @@
     if (errors.length) {
       banner.innerHTML = `<div class="banner">この寸法では組めません。<ul>${errors.map((e) => `<li>${e}</li>`).join("")}</ul></div>`;
       $("drawings").innerHTML = "";
+      $("scene3d").innerHTML = "";
       $("partsBody").innerHTML = "";
       $("shopping").innerHTML = "";
       return;
@@ -560,6 +668,7 @@
       <div class="view-card"><h3>正面図</h3>${elevationView(W, H, t, legW, legT, legLen, shelfGap, stretcherLen, scale, `幅 ${esc(W)}`, `高さ ${esc(H)}`, legW)}</div>
       <div class="view-card"><h3>側面図</h3>${elevationView(D, H, t, legW, legT, legLen, shelfGap, frameShort, scale, `奥行 ${esc(D)}`, `高さ ${esc(H)}`, legT)}</div>
     `;
+    $("scene3d").innerHTML = render3D(W, D, H, t, legW, legT, legLen, shelfGap, frameShort, stretcherLen);
 
     const rows = [
       ["コンパネ①", "天板", `${esc(W)} × ${esc(D)} × ${esc(t)}`, "1 枚"],
