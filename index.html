@@ -455,7 +455,7 @@
       </div>
 
       <div class="card">
-        <h2>買い物リスト（目安）</h2>
+        <h2>買い物リスト</h2>
         <div class="shopping" id="shopping"></div>
       </div>
 
@@ -478,7 +478,7 @@
 
   <footer class="note">
     想定している組み方: <code>コンパネ天板</code> の下に <code>2×4材</code> でハシゴ状のフレーム(4辺)を組み、その内側・最上部に四隅の脚(floorから天板下面まで通し)を接続し、幅方向の前後に幕板（わたし）を通してその上に<code>下段棚板（コンパネ2枚目）</code>を載せる箱組みです。
-    脚の長さは <code>高さ − 天板厚</code>、フレーム短手は <code>奥行き − 脚幅×2</code>、幕板は <code>幅 − 脚幅×欠き込み回数</code>、下段棚板は <code>フレーム短手 × 幕板の長さ</code> で計算しています。下段棚板の設置高さ（詳細設定の「下段棚板の高さ」）は実測値が未確定のため仮値です。実際の継ぎ方に合わせて詳細設定を調整してください。切り出し本数・材料量はいずれも目安です。刃の厚み分の余裕を見て、現物で最終確認してから切り出してください。
+    脚の長さは <code>高さ − 天板厚</code>、フレーム短手は <code>奥行き − 脚幅×2</code>、幕板は <code>幅 − 脚幅×欠き込み回数</code>、下段棚板は <code>フレーム短手 × 幕板の長さ</code> で計算しています。下段棚板の設置高さ（詳細設定の「下段棚板の高さ」）は実測値が未確定のため仮値です。実際の継ぎ方に合わせて詳細設定を調整してください。買い物リスト・切り出し図（木取り図）は同じ計算結果から出しており、本数・カット回数は下の図の通りです。ただし本数の組み合わせは一例（必ずしも最少ではない）なので、現物・店舗の在庫に応じて最終確認してから発注・切り出してください。
   </footer>
 </div>
 
@@ -898,10 +898,11 @@
       lumberBox = `<div class="box"><h4>2×4材</h4><div class="figure">${packed.bins.length} 本 + 定尺不足</div><p>${packed.overLengthItems.map((it) => `${it.label} ${esc(it.len)}mm`).join("、")} が定尺 ${esc(stockLen)}mm を超えています。定尺を長くしてください。</p></div>`;
     } else {
       const waste = Math.round(packed.bins.reduce((s, b) => s + b.remaining, 0));
-      lumberBox = `<div class="box"><h4>2×4材（定尺 ${esc(stockLen)}mm）</h4><div class="figure">${packed.bins.length} 本</div><p>必要長合計 約${Math.round(totalLen)}mm ／ 端材合計 約${waste}mm（刃厚${KERF_MM}mm分を見込んだ目安）</p></div>`;
+      lumberBox = `<div class="box"><h4>2×4材（定尺 ${esc(stockLen)}mm）</h4><div class="figure">${packed.bins.length} 本</div><p>下の切り出し図の通りに${packed.bins.length}本を購入し、それぞれ図の位置でカットしてください（端材合計 ${waste}mm、刃厚${KERF_MM}mm込み）。</p></div>`;
     }
+    const cutCount = sheetsPacked.sheets.reduce((s, sh) => s + (sh.cuts || []).length, 0);
     const plyBox = `<div class="box"><h4>コンパネ（規格 ${esc(sheetW)}×${esc(sheetH)}mm）</h4><div class="figure">${sheetsPacked.sheets.length}${sheetsPacked.oversized.length ? " 枚 + 収まらない部材あり" : " 枚"}</div>
-      <p>天板 ${esc(W)}×${esc(D)}、下段棚板 ${esc(frameShort)}×${esc(stretcherLen)}。下の切り出し図（木取り図）で配置を確認してください。</p></div>`;
+      <p>下の切り出し図の通りに${sheetsPacked.sheets.length}枚を購入し、合計${cutCount}回のカットを依頼してください（天板 ${esc(W)}×${esc(D)}、下段棚板 ${esc(frameShort)}×${esc(stretcherLen)}を切り出します）。</p></div>`;
     $("shopping").innerHTML = lumberBox + plyBox;
   }
 
