@@ -85,6 +85,14 @@ H=560の由来：シンク側カウンター高さ785mm・既存のIH側家具�
 - 部材リスト表（材料・部材名・寸法・数量）
 - 買い物リスト（2×4材の必要本数の目安、コンパネが1枚で採れるか）
 
+## 参考資料（元の手書きメモ・現物写真）
+
+- [手書きメモ1: 全体寸法の計算](docs/sketch-01-dimensions.jpeg)
+- [手書きメモ2: フレーム・脚・わたしの計算](docs/sketch-02-frame-calc.jpeg)
+- [手書きメモ3: 部材リスト](docs/sketch-03-parts-list.jpeg)
+- [現物写真1: キッチン全体](docs/photo-01-kitchen-overview.jpeg)
+- [現物写真2: IH台の詳細](docs/photo-02-kitchen-detail.jpeg)
+
 ## 未対応・今後の検討事項
 
 - 複数ユニットの保存・比較（今は1ユニットずつ入力）
